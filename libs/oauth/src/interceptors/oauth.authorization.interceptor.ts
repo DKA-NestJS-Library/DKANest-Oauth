@@ -5,7 +5,6 @@ import {
   ExecutionContext,
   GatewayTimeoutException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NestInterceptor,
   NotAcceptableException,
@@ -15,21 +14,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
-import validator from 'validator';
-import {
-  DEFINE_CALLBACK_TOKEN_OAUTH_2_MIDDLEWARE_KEY,
-  DEFINE_GET_TOKEN_OAUTH_2_KEY,
-} from '@app/oauth';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import * as fs from 'node:fs';
 import { spawnSync } from 'child_process';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as process from 'node:process';
-import * as moment from 'moment-timezone';
-import { DurationInputArg2 } from 'moment-timezone';
-import { EncryptJWT, jwtDecrypt } from 'jose';
-import { createPublicKey } from 'crypto';
+import { jwtDecrypt } from 'jose';
 import { createPrivateKey } from 'node:crypto';
 import { DEFINE_AUTHORIZATION_VERIFY } from '@app/oauth/decorators/oauth.authorization.decorator';
 
@@ -85,9 +76,9 @@ export class OauthAuthorizationInterceptor
     next: CallHandler,
   ): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest();
-    const { headers, body } = request;
+    const { headers, url } = request;
     const method = request.method.toUpperCase();
-
+    const scope = url.replace(/^\/|\/$/g, '').replace(/\//g, '.');
     const controllerClass = context.getClass();
     const handlerName = context.getHandler().name;
 
@@ -133,7 +124,14 @@ export class OauthAuthorizationInterceptor
       issuer: `${process.env.ACCESS_TOKEN_ISSUER || 'service-core-account'}`,
     })
       .then(({ payload }) => {
-        SetMetadata(DEFINE_AUTHORIZATION_VERIFY, payload)(context.getHandler());
+        SetMetadata(DEFINE_AUTHORIZATION_VERIFY, {
+          ...payload,
+          metadata: {
+            method: method,
+            action: handlerName,
+            scope: scope,
+          },
+        })(context.getHandler());
         return next.handle();
       })
       .catch((error) => {

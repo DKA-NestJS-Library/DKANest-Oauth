@@ -3,12 +3,13 @@ import { JWTPayload } from 'jose';
 export type OauthAuthenticationMiddlewareCallback<ServiceClass> = (
   data: OauthAuthenticationCallbackData,
   ctx: ServiceClass,
-) => JWTPayload;
+) => JWTPayload | Error;
 
 export interface OauthAuthenticationCallbackData {
   ClientID: string;
   ClientSecret: string;
   Scopes: Array<any>;
+  Body: any;
 }
 
 export interface OauthAuthenticationConfig {

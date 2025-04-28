@@ -79,7 +79,9 @@ export class OauthAuthentificationInterceptor
     next: CallHandler,
   ): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest();
-    const { headers, body } = request;
+    const { headers, body, url } = request;
+    const Body = body;
+    const scope = url.replace(/^\/|\/$/g, '').replace(/\//g, '.');
     const method = request.method.toUpperCase();
 
     const controllerClass = context.getClass();
@@ -207,12 +209,26 @@ export class OauthAuthentificationInterceptor
           );
         }
 
-        const Scopes = body.scope !== undefined ? body.scope.split(':') : [];
+        const scopesRaw = body.scope !== undefined ? body.scope.split(',') : [];
+
+        const Scopes = scopesRaw.map((item) => {
+          const [scope, action] = item.split(':').map((part) => part.trim());
+          return { scope, action };
+        });
 
         const payload = callback(
-          { ClientID, ClientSecret, Scopes },
-          controllerClass,
+          {
+            ClientID,
+            ClientSecret,
+            Scopes,
+            Body,
+          },
+          serviceInstance,
         );
+
+        if (payload instanceof Error) {
+          return throwError(() => payload);
+        }
 
         const timeNow = moment(moment.now());
 
@@ -229,7 +245,9 @@ export class OauthAuthentificationInterceptor
             `${(process.env.REFRESH_TOKEN_EXPIRES_UNIT as DurationInputArg2) || 'days'}`,
           );
 
-        const AccessToken = new EncryptJWT(payload)
+        const AccessToken = new EncryptJWT({
+          ...payload,
+        })
           .setProtectedHeader({ alg: 'RSA-OAEP', enc: 'A256GCM' })
           .setExpirationTime(AccessTokenExpires.unix())
           .setIssuer(
@@ -237,7 +255,9 @@ export class OauthAuthentificationInterceptor
           )
           .setSubject(`${process.env.ACCESS_TOKEN_SUBJECT || 'access_token'}`);
 
-        const RefreshToken = new EncryptJWT(payload)
+        const RefreshToken = new EncryptJWT({
+          ...payload,
+        })
           .setProtectedHeader({ alg: 'RSA-OAEP', enc: 'A256GCM' })
           .setExpirationTime(RefreshTokenExpires.unix())
           .setIssuer(

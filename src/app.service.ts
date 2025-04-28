@@ -6,7 +6,7 @@ export class AppService {
   private readonly logger: Logger = new Logger(this.constructor.name);
 
   @OauthAuthenticationMiddlewares<AppService>(
-    ({ ClientID, ClientSecret, Scopes }, ctx) => {
+    ({ ClientID, ClientSecret, Scopes, Body }, ctx) => {
       return { halo: 123 };
     },
   )
