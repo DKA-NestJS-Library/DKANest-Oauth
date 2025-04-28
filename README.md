@@ -24,43 +24,61 @@ The Library NestJS Oauth Authentification & Authorization
 ## Controller
 
 ```ts
-import { Privileges } from '@dkanest/oauth';
+import { Controller, Get, Post } from '@nestjs/common';
+import { AppService } from './app.service';
+import { OauthAuthentication, OauthAuthenticationResult } from '@dkanest/oauth';
+import {
+  OauthAuthorizationResult,
+  OauthAuthorizationVerify,
+} from '@app/oauth/decorators/oauth.authorization.decorator';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Get()
-  @Privileges()
-  getHello(): string {
-    return this.appService.getHello();
+  @Post('/')
+  /**
+   * Authomatically create Token Binding to Anotation @OauthAuthenticationMiddlewares in Hello2Service Method
+   */
+  @OauthAuthentication()
+  /** The Result Tokent With @OauthAuthenticationResult **/
+  getHello(@OauthAuthenticationResult() tokenResult): string {
+    return this.appService.getHello2(tokenResult);
+  }
+
+  @Get('/')
+  @OauthAuthorizationVerify()
+  /** Automatically Verification And Get Payload Decrypted Token to Session Data **/
+  read(@OauthAuthorizationResult() sessionData) {
+    return sessionData;
   }
 }
+
 
 ```
 
 ## Service Binding
 
 ```typescript
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { AccessPrivileges } from '@dkanest/privileges';
+import { Injectable, Logger } from '@nestjs/common';
+import { OauthAuthenticationMiddlewares } from '@dkanest/oauth';
 
 @Injectable()
 export class AppService {
   private readonly logger: Logger = new Logger(this.constructor.name);
 
-  /**
-   * @param {string} scope adalah url yang berupa format (.) dot
-   * @param {string} name nama method yang di controller
-   * @param { string } method method yang digunakan di controller @Get(), @Post() etc
-   * @return { boolean } jika false maka akan mengembalikan unauthorization, jika true maka di izinkan
-   * **/
-  @AccessPrivileges<AppService>(({ scope, method, name }, ctx) => {
-    return scope === 'halo.apa' && name === 'getHello';
-  })
-  getHello(): string {
-    return 'Hello World!';
+  @OauthAuthenticationMiddlewares<AppService>(
+    ({ ClientID, ClientSecret, Scopes, Body }, ctx) => {
+      //ctx.logger.log(`Ini adalah ctx dari this class ini`)
+      /**
+       * Return Berisi payload Yang Akan Di Encrypt Menjadi Token Di Controller ResultToken
+       */
+      return { halo: 123 };
+    },
+  )
+  getHello2(tokenResult: string): string {
+    return tokenResult;
   }
-
 }
+
 ```
